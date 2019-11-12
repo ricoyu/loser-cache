@@ -36,6 +36,8 @@ https://github.com/xetorthio/jedis/wiki
 
 # 单节点配置
 
+src/main/resources/redis.properties
+
 ```properties
 #单节点用法
 redis.host=localhost
@@ -46,9 +48,7 @@ redis.db=12
 
 # Sentinel配置
 
-* redis.sentinels=192.168.10.101:26379,192.168.10.102:26379,192.168.10.103:26379
-  后面跟的是Redis Sentinel的IP:PORT
-* redis.maserName=mymaster
+src/main/resources/redis.properties
 
 ```properties
 #sentinel用法
@@ -60,6 +60,8 @@ redis.db=0
 ```
 
 # Cluster 配置
+
+src/main/resources/redis.properties
 
 * redis.clusters=192.168.10.201:6379,192.168.10.201:6380,192.168.10.202:6379,192.168.10.201:6380,192.168.10.203:6379,192.168.10.201:6380
   后面跟的是集群中所有Master, Slave的IP:PORT
