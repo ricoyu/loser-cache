@@ -12,7 +12,6 @@ import redis.clients.util.Pool;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
 
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
@@ -66,15 +65,12 @@ public final class JedisOperationFactory {
 	
 	
 	/**
-	 * 预热JedisPool <p>
-	 * 由于一些原因(例如超时时间设置较小原因), 有的项目在启动成功后会出现超时。
-	 * JedisPool定义最大资源数、最小空闲资源数时, 不会真的把Jedis连接放到池子里,
-	 * 第一次使用时, 池子没有资源使用, 会new Jedis, 使用后放到池子里, 可能会有一定的时间开销,
-	 * 所以也可以考虑在JedisPool定义后, 为JedisPool提前进行预热, 例如以最小空闲数量为预热数量.
+	 * 预热JedisPool <p> 由于一些原因(例如超时时间设置较小原因), 有的项目在启动成功后会出现超时。 JedisPool定义最大资源数、最小空闲资源数时, 不会真的把Jedis连接放到池子里, 第一次使用时,
+	 * 池子没有资源使用, 会new Jedis, 使用后放到池子里, 可能会有一定的时间开销, 所以也可以考虑在JedisPool定义后, 为JedisPool提前进行预热, 例如以最小空闲数量为预热数量.
 	 */
 	public static void warmUp(Pool<Jedis> pool) {
 		// 不卡住, 不影响Spring的启动
-		Executors.newSingleThreadExecutor().execute(() -> {
+		new Thread(() -> {
 			int maxIdle = pool.getNumIdle();
 			List<Jedis> minIdleJedisList = new ArrayList<Jedis>(maxIdle);
 			
@@ -87,7 +83,7 @@ public final class JedisOperationFactory {
 				} catch (Exception e) {
 					log.error(e.getMessage(), e);
 					throw new RuntimeException(e);
-				} 
+				}
 			}
 			
 			for (int i = 0; i < maxIdle; i++) {
@@ -101,6 +97,6 @@ public final class JedisOperationFactory {
 				}
 			}
 			
-		});
+		}, "<<<< JedisPool warmup thread >>>>");
 	}
 }
