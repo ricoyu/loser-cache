@@ -1,6 +1,7 @@
 package com.loserico.cache.operations;
 
 import com.loserico.cache.exception.OperationNotSupportedException;
+import redis.clients.jedis.Jedis;
 
 import java.util.List;
 import java.util.Map;
@@ -375,5 +376,10 @@ public interface JedisOperations {
 	public default String ping() {
 		throw new UnsupportedOperationException();
 	}
-
+	
+	/**
+	 * 直接暴露Jedis供客户端操作
+	 * @return
+	 */
+	public Jedis jedis();
 }

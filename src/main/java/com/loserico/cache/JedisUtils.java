@@ -16,6 +16,7 @@ import com.loserico.common.lang.utils.PrimitiveUtils;
 import com.loserico.json.jackson.JacksonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPubSub;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static com.loserico.cache.status.HSet.INSERTED;
@@ -1992,6 +1994,15 @@ public final class JedisUtils {
 		String lockKey = nonBlockingLockKey(key);
 		long result = (long) jedisOperations.evalsha(setnxSha1, 1, lockKey, token);
 		return result == 1L;
+	}
+	
+	public static <R> R execute(Function<Jedis, R> func) {
+		try(Jedis jedis = jedisOperations.jedis()) {
+			return func.apply(jedis);
+		} catch (Exception e) {
+			log.error("", e);
+			throw new RuntimeException("", e);
+		}
 	}
 	
 	private static boolean isEmpty(Collection<?> collection) {

@@ -1,5 +1,6 @@
 package com.loserico.cache.operations;
 
+import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
 
 import java.util.List;
@@ -309,4 +310,8 @@ public class JedisClusterOperations implements JedisOperations {
 		return jedisCluster.publish(channel, message);
 	}
 	
+	@Override
+	public Jedis jedis() {
+		throw new UnsupportedOperationException("JedisClusterOperations不支持暴露Jedis");
+	}
 }

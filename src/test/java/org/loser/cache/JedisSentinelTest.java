@@ -19,9 +19,22 @@ import java.util.concurrent.TimeUnit;
 public class JedisSentinelTest {
 
 	@Test
+	public void testSetGet() {
+		JedisUtils.set("rico", "很帅");
+		String desc = JedisUtils.get("rico");
+		System.out.println(desc);
+	}
+	@Test
 	public void testNonBlockLock() {
 		Lock lock = JedisUtils.lock("lock1", 1000, TimeUnit.SECONDS);
 		lock.unlockAnyway();
 	}
 	
+	@Test
+	public void testGetMasterAddress() {
+		Object address = JedisUtils.execute((jedis) -> {
+			return jedis.sentinelGetMasterAddrByName("mymaster");
+		});
+		System.out.println(address);
+	}
 }

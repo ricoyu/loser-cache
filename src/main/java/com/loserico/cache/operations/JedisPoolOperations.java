@@ -311,6 +311,11 @@ public class JedisPoolOperations implements JedisOperations {
 		return operate((jedis) -> jedis.ping());
 	}
 	
+	@Override
+	public Jedis jedis() {
+		return pool.getResource();
+	}
+	
 	private <R> R operate(Function<Jedis, R> func) {
 		Jedis jedis = pool.getResource();
 		try {
