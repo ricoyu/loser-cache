@@ -32,4 +32,8 @@ public class JedisUtilsTests {
 		System.out.println(JedisUtils.get("k1"));
 	}
 	
+	@Test
+	public void testSubscribe() {
+	}
+	
 }

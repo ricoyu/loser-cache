@@ -1,11 +1,14 @@
 package com.loserico.cache.operations;
 
+import com.loserico.cache.concurrent.ThreadPool;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPubSub;
 import redis.clients.util.Pool;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 /**
@@ -21,6 +24,8 @@ import java.util.function.Function;
 public class JedisPoolOperations implements JedisOperations {
 	
 	private final Pool<Jedis> pool;
+	
+	private static final ExecutorService THREAD_POOL = ThreadPool.newThreadPool();
 	
 	public JedisPoolOperations(Pool<Jedis> pool) {
 		this.pool = pool;
@@ -307,6 +312,16 @@ public class JedisPoolOperations implements JedisOperations {
 	}
 	
 	@Override
+	public void subscribe(JedisPubSub jedisPubSub, String... channels) {
+		Jedis jedis = pool.getResource();
+		try {
+			THREAD_POOL.execute(() -> jedis.subscribe(jedisPubSub, channels));
+		} finally {
+			jedis.close();
+		}
+	}
+	
+	@Override
 	public String ping() {
 		return operate((jedis) -> jedis.ping());
 	}
@@ -324,4 +339,5 @@ public class JedisPoolOperations implements JedisOperations {
 			jedis.close();
 		}
 	}
+	
 }

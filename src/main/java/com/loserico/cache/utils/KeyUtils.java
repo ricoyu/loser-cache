@@ -1,5 +1,6 @@
 package com.loserico.cache.utils;
 
+import com.loserico.cache.exception.InvalidKeyException;
 import com.loserico.common.lang.utils.PrimitiveUtils;
 import com.loserico.json.jackson.JacksonUtils;
 
@@ -22,9 +23,6 @@ import static java.text.MessageFormat.format;
  * @on
  */
 public final class KeyUtils {
-
-	private static final String NON_BLOCKING_LOCK_PREDIX = "$lock:";
-	private static final String NON_BLOCKING_LOCK_SUFFIX = ":nblk$";
 	
 	/**
 	 * 用key模板生成最终的redis key
@@ -190,12 +188,12 @@ public final class KeyUtils {
 	}
 	
 	/**
-	 * 给传入的非阻塞分布式锁的key加上前缀和后缀
-	 *
-	 * @param originalKey 锁的key
-	 * @return String
+	 * key不能为null或者空字符串
+	 * @param key
 	 */
-	public static String nonBlockingLockKey(String originalKey) {
-		return NON_BLOCKING_LOCK_PREDIX + originalKey + NON_BLOCKING_LOCK_SUFFIX;
+	public static void requireNonBlank(String key) {
+		if (null == key || "".equals(key.trim())) {
+			throw new InvalidKeyException("key不能为空");
+		}
 	}
 }

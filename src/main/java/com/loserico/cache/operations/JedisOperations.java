@@ -2,6 +2,7 @@ package com.loserico.cache.operations;
 
 import com.loserico.cache.exception.OperationNotSupportedException;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPubSub;
 
 import java.util.List;
 import java.util.Map;
@@ -372,6 +373,14 @@ public interface JedisOperations {
 	public Object evalsha(final byte[] sha1, final int keyCount, final byte[]... params);
 	
 	public Long publish(final byte[] channel, final byte[] message);
+	
+	/**
+	 * 订阅频道
+	 * @param jedisPubSub
+	 * @param channels
+	 * @return
+	 */
+	public void subscribe(JedisPubSub jedisPubSub, String... channels);
 	
 	public default String ping() {
 		throw new UnsupportedOperationException();

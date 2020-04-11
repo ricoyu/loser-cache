@@ -2,14 +2,17 @@ package com.loserico.cache;
 
 import com.fasterxml.jackson.databind.JavaType;
 import com.loserico.cache.collection.QueueListener;
+import com.loserico.cache.concurrent.BlockingLock;
 import com.loserico.cache.concurrent.Lock;
 import com.loserico.cache.concurrent.NonBlockingLock;
 import com.loserico.cache.exception.JedisValueOperationException;
 import com.loserico.cache.factory.JedisOperationFactory;
+import com.loserico.cache.listeners.MessageListener;
 import com.loserico.cache.operations.JedisClusterOperations;
 import com.loserico.cache.operations.JedisOperations;
 import com.loserico.cache.status.HSet;
 import com.loserico.cache.status.TTL;
+import com.loserico.cache.utils.KeyUtils;
 import com.loserico.cache.utils.UnMarshaller;
 import com.loserico.common.lang.utils.IOUtils;
 import com.loserico.common.lang.utils.PrimitiveUtils;
@@ -41,7 +44,7 @@ import static com.loserico.cache.status.HSet.INSERTED;
 import static com.loserico.cache.status.HSet.UPDATED;
 import static com.loserico.cache.utils.ByteUtils.toBytes;
 import static com.loserico.cache.utils.KeyUtils.joinKey;
-import static com.loserico.cache.utils.KeyUtils.nonBlockingLockKey;
+import static com.loserico.cache.utils.StringUtils.requireNonEmpty;
 import static com.loserico.cache.utils.UnMarshaller.toList;
 import static com.loserico.cache.utils.UnMarshaller.toLong;
 import static com.loserico.cache.utils.UnMarshaller.toObject;
@@ -340,11 +343,12 @@ public final class JedisUtils {
 		// 没有命中则调用supplier.get()并回填缓存
 		if (object == null) {
 			// 成功获取锁才调supplier并回填
-			Lock lock = lock(key, expires, timeUnit);
-			if (lock.locked()) {
+			String requestId = UUID.randomUUID().toString();
+			boolean locked = lock(key, requestId, expires, timeUnit);
+			if (locked) {
 				T result = supplier.get();
 				set(key, result, expires, timeUnit);
-				lock.unlock();
+				unlock(key, requestId);
 				return result;
 			} else {// 没有获得锁就再从缓存取一遍, 取不到拉倒
 				return get(key, clazz);
@@ -434,16 +438,17 @@ public final class JedisUtils {
 		// 没有命中则调用supplier.get()并回填缓存
 		if (object == null || object.isEmpty()) {
 			// 成功获取锁才调supplier并回填
-			Lock lock = lock(key, 1, MINUTES);
-			if (lock.locked()) {
+			String requestId = UUID.randomUUID().toString();
+			boolean locked = lock(key, requestId, 1, MINUTES);
+			if (locked) {
 				try {
 					List<T> result = supplier.get();
 					set(key, result, 5, MINUTES);
 					return result;
 				} finally {
-					lock.unlock();
+					unlock(key, requestId);
 				}
-			} else {// 没有获得锁就再从缓存取一遍, 取不到拉倒
+			} else {// 没有获得锁就再从缓存取一遍
 				return getList(key, clazz);
 			}
 		}
@@ -469,10 +474,10 @@ public final class JedisUtils {
 			/*
 			 * 成功获取锁才调supplier并回填
 			 * 这里锁的时间没关系, 因为拿到锁后执行set操作后就会解锁
-			 * @on
 			 */
-			Lock lock = lock(key, expires, timeUnit);
-			if (lock.locked()) {
+			String requestId = UUID.randomUUID().toString();
+			boolean locked = lock(key, requestId, expires, timeUnit);
+			if (locked) {
 				try {
 					List<T> result = supplier.get();
 					if (isNotEmpty(result)) {
@@ -480,7 +485,7 @@ public final class JedisUtils {
 					}
 					return result;
 				} finally {
-					lock.unlock();
+					unlock(key, requestId);
 				}
 			} else {// 没有获得锁就再从缓存取一遍, 取不到就拉倒
 				return getList(key, clazz);
@@ -1854,6 +1859,25 @@ public final class JedisUtils {
 	}
 	
 	/**
+	 * 异步方式订阅频道, 收到消息后回调 messageListener
+	 *
+	 * @param chnannel
+	 * @param messageListener
+	 * @return JedisPubSub 用于取消订阅
+	 */
+	public static JedisPubSub subscribe(String chnannel, MessageListener messageListener) {
+			JedisPubSub jedisPubSub = new JedisPubSub() {
+				
+				@Override
+				public void onMessage(String channel, String message) {
+					messageListener.onMessage(channel, message);
+				}
+			};
+			jedisOperations.subscribe(jedisPubSub, chnannel);
+			return jedisPubSub;
+	}
+	
+	/**
 	 * 取消订阅
 	 *
 	 * @param jedisPubSub
@@ -1866,16 +1890,14 @@ public final class JedisUtils {
 	/**
 	 * <pre>
 	 * <b>非公平锁</b></p>
-	 * Redis 下获取分布式锁
-	 * 不会等待锁, 拿不到直接返回
+	 * Redis 下获取分布式锁, 不会等待锁, 拿不到直接返回
 	 * @param key
 	 * @return Lock
 	 */
-	public static Lock lock(String key) {
-		String requestId = UUID.randomUUID().toString().replaceAll("-", "");
-		String lockKey = nonBlockingLockKey(key);
-		boolean success = setnx(lockKey, requestId);
-		return new NonBlockingLock(key, requestId, success); // 这里传原始的key
+	public static boolean lock(String key, String requestId) {
+		KeyUtils.requireNonBlank(key);
+		requireNonEmpty(requestId);
+		return setnx(key, requestId);
 	}
 	
 	/**
@@ -1934,26 +1956,26 @@ public final class JedisUtils {
 	 * @return String token 返回null表示没有获取到锁,  返回一个token表示成功获取锁, 解锁的时候用这个token来解锁
 	 * @on
 	 */
-	public static Lock lock(String key, long leaseTime) {
-		String requestId = UUID.randomUUID().toString().replaceAll("-", "");
-		String lockKey = nonBlockingLockKey(key);
-		boolean success = setnx(lockKey, requestId, leaseTime, TimeUnit.SECONDS);
-		return new NonBlockingLock(key, requestId, success); // 这里传原始的key
+	public static boolean lock(String key, String requestId, long leaseTime, TimeUnit timeUnit) {
+		return setnx(key, requestId, leaseTime, timeUnit);
 	}
 	
 	/**
-	 * 对传入的原始key, 加上前缀/后缀, 组合成最终锁使用的key, 然后尝试对这个最终的key加锁
-	 *
+	 * 阻塞非公平锁
 	 * @param key
-	 * @param leaseTime
-	 * @param timeUnit
-	 * @return Lock
+	 * @return
 	 */
-	public static Lock lock(String key, long leaseTime, TimeUnit timeUnit) {
-		String requestId = UUID.randomUUID().toString().replaceAll("-", "");
-		String lockKey = nonBlockingLockKey(key);
-		boolean success = setnx(lockKey, requestId, leaseTime, timeUnit);
-		return new NonBlockingLock(key, requestId, success); // 这里传原始的key
+	public static Lock blockingLock(String key) {
+		return new BlockingLock(key);
+	}
+	
+	/**
+	 * 非阻塞非公平锁
+	 * @param key
+	 * @return
+	 */
+	public static Lock nonBlockingLock(String key) {
+		return new NonBlockingLock(key);
 	}
 	
 	/**
@@ -1979,10 +2001,10 @@ public final class JedisUtils {
 	 * so the lock will be removed only if it is still the one that was set by the client trying to remove it.
 	 *
 	 * @param key   锁
-	 * @param token 用于解锁的
+	 * @param value 用于解锁的
 	 * @return boolean 是否释放成功
 	 */
-	public static boolean unlock(String key, String token) {
+	public static boolean unlock(String key, String value) {
 		String setnxSha1 = shaHashs.computeIfAbsent("unlock.lua", x -> {
 			log.debug("Load script {}", "unlock.lua");
 			if (jedisOperations instanceof JedisClusterOperations) {
@@ -1991,8 +2013,7 @@ public final class JedisUtils {
 			return jedisOperations.scriptLoad(IOUtils.readClassPathFileAsString("/lua-scripts/unlock.lua"));
 		});
 		
-		String lockKey = nonBlockingLockKey(key);
-		long result = (long) jedisOperations.evalsha(setnxSha1, 1, lockKey, token);
+		long result = (long) jedisOperations.evalsha(setnxSha1, 1, key, value);
 		return result == 1L;
 	}
 	

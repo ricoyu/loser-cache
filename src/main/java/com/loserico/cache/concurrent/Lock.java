@@ -13,7 +13,7 @@ package com.loserico.cache.concurrent;
  * @version 1.0
  * @formatter:off
  */
-public interface Lock extends java.util.concurrent.locks.Lock {
+public interface Lock{
 	
 	/**
 	 * 是否成功获取锁
@@ -23,11 +23,15 @@ public interface Lock extends java.util.concurrent.locks.Lock {
 	public boolean locked();
 	
 	/**
+	 * 加锁
+	 */
+	public void lock();
+	
+	/**
 	 * 释放锁。需要先检查是否成功获取锁，没获得锁就调用该方法将抛异常
 	 *
 	 * @throws IllegalMonitorStateException
 	 */
-	@Override
 	public void unlock();
 	
 	/**
@@ -43,12 +47,4 @@ public interface Lock extends java.util.concurrent.locks.Lock {
 	 */
 	public void unlockAnyway();
 	
-	/**
-	 * Remaining time to live of this lock
-	 *
-	 * @return time in milliseconds
-	 * -2 if the lock does not exist.
-	 * -1 if the lock exists but has no associated expire.
-	 */
-	long remainTimeToLive();
 }

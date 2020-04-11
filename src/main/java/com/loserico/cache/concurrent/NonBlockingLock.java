@@ -2,12 +2,10 @@ package com.loserico.cache.concurrent;
 
 import com.loserico.cache.JedisUtils;
 import com.loserico.cache.exception.OperationNotSupportedException;
-import com.loserico.cache.utils.DateUtils;
+import com.loserico.cache.utils.KeyUtils;
 import com.loserico.common.lang.utils.ReflectionUtils;
 
-import java.time.LocalDateTime;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
+import java.util.UUID;
 
 /**
  * 非阻塞锁
@@ -21,7 +19,12 @@ import java.util.concurrent.locks.Condition;
  * @author Rico Yu	ricoyu520@gmail.com
  * @version 1.0
  */
-public class NonBlockingLock implements Lock, Expirable {
+public class NonBlockingLock implements Lock{
+	
+	/**
+	 * 锁的模板
+	 */
+	private static final String LOCK_FORMAT = "loser:nblk:%s:lock";
 
 	/**
 	 * 这是commons-spring模块中的类
@@ -40,11 +43,15 @@ public class NonBlockingLock implements Lock, Expirable {
 	private boolean transactionEventsInitialized = false;
 	private Object transactionEventsInstance;
 
-	public NonBlockingLock(String key, String requestId, boolean locked) {
-		this.key = key;
-		if (locked) {
-			this.requestId = requestId;
-		}
+	public NonBlockingLock(String key) {
+		KeyUtils.requireNonBlank(key);
+		this.key = String.format(LOCK_FORMAT, key);
+		this.requestId = UUID.randomUUID().toString();
+	}
+	
+	@Override
+	public void lock() {
+		boolean locked = JedisUtils.lock(key, requestId);
 		this.locked = locked;
 	}
 
@@ -78,82 +85,6 @@ public class NonBlockingLock implements Lock, Expirable {
 	@Override
 	public boolean locked() {
 		return locked;
-	}
-
-	@Override
-	public boolean expire(long timeToLive, TimeUnit timeUnit) {
-		if (locked) {
-			return JedisUtils.expire(key, ((Long) timeToLive).intValue(), timeUnit);
-		}
-		throw new OperationNotSupportedException("你还没获取到锁哦");
-	}
-
-	@Override
-	public boolean expireAt(long timestamp) {
-		return JedisUtils.expireAt(key, timestamp);
-	}
-
-	@Override
-	public boolean expireAt(LocalDateTime timestamp) {
-		if (timestamp == null) {
-			return false;
-		}
-		return JedisUtils.expireAt(key, DateUtils.toEpochMilis(timestamp));
-	}
-
-	@Override
-	public boolean clearExpire() {
-		return JedisUtils.persist(key);
-	}
-
-	@Override
-	public long remainTimeToLive() {
-		return JedisUtils.ttl(key);
-	}
-
-	/**
-	 * 不支持该操作, 请改用RedissonLock
-	 * throws UnsupportedOperationException
-	 */
-	@Override
-	public void lock() {
-		throw new UnsupportedOperationException("NonBlockingLock not support lock(), use RedissonLock instead");
-	}
-
-	/**
-	 * 不支持该操作, 请改用RedissonLock
-	 * throws UnsupportedOperationException
-	 */
-	@Override
-	public void lockInterruptibly() {
-		throw new UnsupportedOperationException("NonBlockingLock not support lockInterruptibly(), use RedissonLock instead");
-	}
-
-	/**
-	 * 不支持该操作, 请改用RedissonLock
-	 * throws UnsupportedOperationException
-	 */
-	@Override
-	public boolean tryLock() {
-		throw new UnsupportedOperationException("NonBlockingLock not support tryLock(), use RedissonLock instead");
-	}
-
-	/**
-	 * 不支持该操作, 请改用RedissonLock
-	 * throws UnsupportedOperationException
-	 */
-	@Override
-	public boolean tryLock(long time, TimeUnit unit) {
-		throw new UnsupportedOperationException("NonBlockingLock not support tryLock(time, unit), use RedissonLock instead");
-	}
-
-	/**
-	 * 不支持该操作, 请改用RedissonLock
-	 * throws UnsupportedOperationException
-	 */
-	@Override
-	public Condition newCondition() {
-		throw new UnsupportedOperationException("NonBlockingLock not support newCondition(), use RedissonLock instead");
 	}
 
 }

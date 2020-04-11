@@ -2,6 +2,7 @@ package com.loserico.cache.operations;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
+import redis.clients.jedis.JedisPubSub;
 
 import java.util.List;
 import java.util.Map;
@@ -308,6 +309,11 @@ public class JedisClusterOperations implements JedisOperations {
 	@Override
 	public Long publish(byte[] channel, byte[] message) {
 		return jedisCluster.publish(channel, message);
+	}
+	
+	@Override
+	public void subscribe(JedisPubSub jedisPubSub, String... channels) {
+		
 	}
 	
 	@Override

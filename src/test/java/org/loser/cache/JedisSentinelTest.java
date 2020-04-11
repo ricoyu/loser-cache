@@ -1,10 +1,7 @@
 package org.loser.cache;
 
 import com.loserico.cache.JedisUtils;
-import com.loserico.cache.concurrent.Lock;
 import org.junit.Test;
-
-import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -23,11 +20,6 @@ public class JedisSentinelTest {
 		JedisUtils.set("rico", "很帅");
 		String desc = JedisUtils.get("rico");
 		System.out.println(desc);
-	}
-	@Test
-	public void testNonBlockLock() {
-		Lock lock = JedisUtils.lock("lock1", 1000, TimeUnit.SECONDS);
-		lock.unlockAnyway();
 	}
 	
 	@Test
