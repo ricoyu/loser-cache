@@ -1,6 +1,9 @@
 package com.loserico.cache.operations;
 
 import com.loserico.cache.concurrent.ThreadPool;
+import com.loserico.cache.exception.JedisException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPubSub;
 import redis.clients.util.Pool;
@@ -23,12 +26,27 @@ import java.util.function.Function;
  */
 public class JedisPoolOperations implements JedisOperations {
 	
+	private static final Logger log = LoggerFactory.getLogger(JedisPoolOperations.class);
+	
 	private final Pool<Jedis> pool;
+	
+	/**
+	 * 专门用来发布
+	 */
+	private final Jedis publishJedis;
+	
+	/**
+	 * 专门用来订阅
+	 * 因为发布和订阅的Jedis Instance不能是同一个
+	 */
+	private final Jedis subscribeJedis;
 	
 	private static final ExecutorService THREAD_POOL = ThreadPool.newThreadPool();
 	
 	public JedisPoolOperations(Pool<Jedis> pool) {
 		this.pool = pool;
+		this.publishJedis = pool.getResource();
+		this.subscribeJedis = pool.getResource();
 	}
 	
 	@Override
@@ -308,17 +326,12 @@ public class JedisPoolOperations implements JedisOperations {
 	
 	@Override
 	public Long publish(byte[] channel, byte[] message) {
-		return operate((jedis) -> jedis.publish(channel, message));
+		return publishJedis.publish(channel, message);
 	}
 	
 	@Override
 	public void subscribe(JedisPubSub jedisPubSub, String... channels) {
-		Jedis jedis = pool.getResource();
-		try {
-			THREAD_POOL.execute(() -> jedis.subscribe(jedisPubSub, channels));
-		} finally {
-			jedis.close();
-		}
+		THREAD_POOL.execute(() -> subscribeJedis.subscribe(jedisPubSub, channels));
 	}
 	
 	@Override
@@ -335,6 +348,9 @@ public class JedisPoolOperations implements JedisOperations {
 		Jedis jedis = pool.getResource();
 		try {
 			return func.apply(jedis);
+		} catch (Throwable e) {
+			log.error("", e);
+			throw new JedisException(e);
 		} finally {
 			jedis.close();
 		}
